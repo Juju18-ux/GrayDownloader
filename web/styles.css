@@ -1,0 +1,1641 @@
+/* ════════════════════════════════════════════════════════════════════════
+   GrayDownloader V2 — GUI stylesheet
+   target: WebView2 (Chromium) on Windows 10/11, and any Chromium for preview
+
+   Everything Tk could not do lives here: real anti-aliasing, real alpha,
+   backdrop blur, gradient strokes, GPU transitions, honest letter-spacing.
+   ════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Fluid base. This is the fix for "tutto minuscolo": at 1280px wide the base
+     is ~16px, at 2560px it is 19px, so a maximised window scales its type and
+     spacing instead of keeping 8px glyphs. */
+  font-size: clamp(13px, 0.42vw + 10.6px, 19px);
+
+  --ink:        #05070c;
+  --panel:      rgba(9, 13, 21, 0.95);
+  --panel-solid:#0b1018;
+  --panel-hi:   rgba(6, 9, 15, 0.97);
+  --line:       rgba(150, 180, 225, 0.32);
+  --line-hi:    rgba(185, 212, 250, 0.55);
+  --glass:      rgba(255, 255, 255, 0.02);
+
+  --teal:   #4fe3d0;
+  --violet: #8b7cf0;
+  --blue:   #5aa9ff;
+  --mint:   #35d6a4;
+  --amber:  #f0b64f;
+  --red:    #ff5c72;
+
+  --txt:  #ffffff;
+  --txt2: #c8d6ea;
+  --txt3: #97a9c1;
+
+  --r-card: 16px;
+  --r-in:   11px;
+  --gap:    0.85rem;
+
+  --mono: "Cascadia Mono", "JetBrains Mono", Consolas, "SF Mono", ui-monospace, monospace;
+  --sans: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  --shadow: 0 24px 48px -28px rgba(0, 0, 0, 0.9), 0 2px 10px -4px rgba(0, 0, 0, 0.7);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+  background: var(--ink);
+  color: var(--txt);
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ── ambience ─────────────────────────────────────────────────────────── */
+.ambience,
+.ambience-glow { position: fixed; inset: 0; pointer-events: none; }
+
+.ambience {
+  background: url("assets/window.png") center / cover no-repeat, var(--ink);
+  opacity: 0.24;
+}
+
+/* Second layer: a pair of soft radial blooms that pick up the brand colours.
+   Cheap, resolution-independent, and it gives the glass something to blur. */
+.ambience-glow { overflow: hidden; }
+
+/* The blooms live on a child so they can drift without the fixed layer's own
+   box ever moving: transforming the layer itself pushes its rect past the
+   viewport, which render_gui.py correctly reports as an overflow. */
+.ambience-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 90% at 100% 0%,  rgba(79, 227, 208, 0.13), transparent 60%),
+    radial-gradient(90%  70% at 86%  6%,  rgba(139, 124, 240, 0.12), transparent 62%),
+    radial-gradient(140% 120% at 0% 100%, rgba(4, 6, 12, 0.9), transparent 70%);
+  animation: drift 44s ease-in-out infinite;
+}
+
+/* ── shell ────────────────────────────────────────────────────────────── */
+.app {
+  position: relative;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1.4rem;
+  background:
+    linear-gradient(90deg, rgba(5, 7, 12, 0.97) 0%, rgba(5, 7, 12, 0.72) 45%, rgba(5, 7, 12, 0.28) 100%),
+    url("assets/backdrop.png") right center / cover no-repeat;
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg,
+      rgba(79, 227, 208, 0) 0%,
+      rgba(79, 227, 208, 0.55) 30%,
+      rgba(139, 124, 240, 0.55) 70%,
+      rgba(139, 124, 240, 0) 100%) 1;
+}
+
+.brand { display: flex; align-items: center; gap: 0.95rem; }
+
+.defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* ── the mark ────────────────────────────────────────────────────────── */
+/* Vector rather than the PNG. The crescent and the orbit are separate shapes,
+   so the ring can move on its own -- and it stays sharp at the 15rem the cold
+   open draws it at, which a 512px raster does not. */
+.mark-svg { display: block; overflow: visible; }
+.mark-svg .mk-crescent { fill: url(#moonGrad); }
+.mark-svg .mk-orbit {
+  fill: none;
+  stroke: url(#orbitGrad);
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+}
+
+.mark {
+  width: 4.2rem; height: 4.2rem;
+  filter: drop-shadow(0 0 14px rgba(79, 227, 208, 0.45)) drop-shadow(0 0 34px rgba(139, 124, 240, 0.22));
+}
+
+/* The ring is a circle seen at an angle, so animating its minor radius reads as
+   one rotation in depth. Cheaper and steadier than a 3D transform, and it never
+   pushes the glyph off its own baseline. */
+.mark .mk-orbit { animation: orbit 9s ease-in-out infinite; transform-origin: 50% 50%; }
+@keyframes orbit {
+  0%, 100% { ry: 24px; transform: rotate(-24deg); }
+  50%      { ry: 5px;  transform: rotate(-15deg); }
+}
+
+.wordmark {
+  font-size: 1.42rem;
+  letter-spacing: -0.015em;
+  line-height: 1.05;
+}
+.wordmark span  { color: var(--txt2); font-weight: 300; }
+.wordmark strong {
+  font-weight: 650;
+  margin-left: 0.32em;
+  /* A highlight that travels across the glyphs every few seconds. Clipping the
+     gradient to the text is what keeps it on the letters instead of on a box
+     behind them; the long flat head of the keyframe is the pause between
+     passes, so it reads as a sheen and not as a blinking sign. */
+  color: transparent;
+  background: linear-gradient(100deg,
+              #ffffff 42%, rgba(255, 255, 255, 0.55) 47%,
+              #eaf4ff 50%, rgba(255, 255, 255, 0.55) 53%, #ffffff 58%);
+  background-size: 280% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: sheen 7s ease-in-out infinite;
+}
+@keyframes sheen {
+  0%, 62% { background-position: 135% 0; }
+  100%    { background-position: -35% 0; }
+}
+
+.hosts {
+  margin-top: 0.28rem;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--txt3);
+}
+.hosts i { margin: 0 0.5em; font-style: normal; opacity: 0.6; }
+
+.topbar-right { display: flex; align-items: center; gap: 1rem; }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 0.6rem;
+  padding: 0.42rem 0.95rem 0.42rem 0.75rem;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--txt2);
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(12px);
+  transition: color .25s, border-color .25s, box-shadow .25s;
+}
+.pill .dot {
+  width: 0.5rem; height: 0.5rem; border-radius: 50%;
+  background: var(--txt3);
+  box-shadow: 0 0 0 0 transparent;
+}
+.pill[data-state="running"]  { color: var(--mint);  border-color: rgba(53, 214, 164, 0.45); box-shadow: 0 0 24px -8px rgba(53, 214, 164, 0.6); }
+.pill[data-state="running"] .dot  { background: var(--mint);  animation: breathe 1.9s ease-in-out infinite; }
+.pill[data-state="stopping"] { color: var(--amber); border-color: rgba(240, 182, 79, 0.45); }
+.pill[data-state="stopping"] .dot { background: var(--amber); animation: breathe 1.1s ease-in-out infinite; }
+.pill[data-state="done"]     { color: var(--teal);  border-color: rgba(79, 227, 208, 0.4); }
+.pill[data-state="done"] .dot     { background: var(--teal); }
+
+@keyframes breathe {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(53, 214, 164, 0.55); }
+  50%      { box-shadow: 0 0 0 0.42rem rgba(53, 214, 164, 0); }
+}
+
+.version { font-family: var(--mono); font-size: 0.62rem; color: var(--txt3); }
+
+/* ── stage ────────────────────────────────────────────────────────────── */
+.stage {
+  display: grid;
+  grid-template-columns: clamp(21rem, 26vw, 27rem) minmax(0, 1fr);
+  gap: var(--gap);
+  padding: var(--gap) 1.1rem;
+  min-height: 0;
+}
+
+.side { display: grid; min-height: 0; }
+
+/* One surface for the whole column. Five separate floating cards gave five
+   separate frames, five shadows and five borders to a group of controls that is
+   really one thing: the setup for a run. Sections are separated by a hairline
+   and by space, which is enough. */
+.side-panel {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.side-scroll { overflow-y: auto; display: block; min-height: 0; }
+
+.sect { padding: 0.95rem 1.15rem; border-bottom: 1px solid var(--line); }
+.sect-last { border-bottom: 0; }
+.sect > .card-head { margin-bottom: 0.75rem; }
+.main { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: var(--gap); min-height: 0; }
+
+/* ── card ─────────────────────────────────────────────────────────────── */
+.card {
+  position: relative;
+  padding: 1rem 1.05rem 1.05rem;
+  border-radius: var(--r-card);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045) 0%, rgba(255, 255, 255, 0) 22%),
+    var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow), inset 0 1px 0 var(--glass);
+  backdrop-filter: blur(22px) saturate(120%);
+  transition: border-color .22s, box-shadow .22s, transform .22s;
+}
+.card:hover { border-color: var(--line-hi); }
+
+.card.accent-teal   { box-shadow: var(--shadow), inset 0 1px 0 var(--glass), 0 0 34px -18px rgba(79, 227, 208, 0.75); }
+.card.accent-violet { box-shadow: var(--shadow), inset 0 1px 0 var(--glass), 0 0 34px -18px rgba(139, 124, 240, 0.75); }
+
+.card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.7rem; margin-bottom: 0.8rem;
+}
+.card-head h2 {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--txt2);
+}
+.card-head h2 em { font-style: normal; color: var(--txt3); letter-spacing: 0.16em; }
+
+.card-head h2 i,
+.dot-teal, .dot-violet, .dot-mint, .dot-plain {
+  width: 0.42rem; height: 0.42rem; border-radius: 50%; flex: none;
+}
+.dot-teal   { background: var(--teal);   box-shadow: 0 0 9px rgba(79, 227, 208, 0.9); }
+.dot-violet { background: var(--violet); box-shadow: 0 0 9px rgba(139, 124, 240, 0.9); }
+.dot-mint   { background: var(--mint);   box-shadow: 0 0 9px rgba(53, 214, 164, 0.9); }
+.dot-plain  { background: var(--txt3); }
+
+.count { font-family: var(--mono); font-size: 0.66rem; color: var(--teal); }
+
+.note { margin-top: 0.6rem; font-family: var(--mono); font-size: 0.6rem; line-height: 1.5; color: var(--txt3); }
+.note.tight { margin: -0.2rem 0 0.65rem; }
+.ok-line { font-family: var(--mono); font-size: 0.66rem; color: var(--violet); }
+.ok-line.bad { color: var(--red); }
+
+.chip {
+  font-family: var(--mono);
+  font-size: 0.55rem; font-weight: 700;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  color: var(--txt2);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+}
+.chip.teal   { color: var(--teal);   border-color: rgba(79, 227, 208, 0.35);  background: rgba(79, 227, 208, 0.08); }
+.chip.violet { color: var(--violet); border-color: rgba(139, 124, 240, 0.35); background: rgba(139, 124, 240, 0.08); }
+.chip.mint   { color: var(--mint);   border-color: rgba(53, 214, 164, 0.35);  background: rgba(53, 214, 164, 0.08); }
+.chip.warn   { color: var(--amber);  border-color: rgba(240, 182, 79, 0.35);  background: rgba(240, 182, 79, 0.08); }
+.chip.demo   { color: var(--amber);  border-color: rgba(240, 182, 79, 0.5); }
+
+/* ── link editor ──────────────────────────────────────────────────────── */
+.editor {
+  position: relative;
+  height: 11rem;
+  border-radius: var(--r-in);
+  background: var(--panel-hi);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  transition: border-color .2s, box-shadow .2s;
+}
+.editor:focus-within { border-color: rgba(79, 227, 208, 0.45); box-shadow: 0 0 0 3px rgba(79, 227, 208, 0.08); }
+
+.editor-paint,
+.editor textarea {
+  position: absolute; inset: 0;
+  padding: 0.7rem 0.8rem;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  line-height: 1.62;
+  white-space: pre;
+  overflow: auto;
+  border: 0;
+  tab-size: 2;
+}
+.editor-paint { color: var(--txt3); pointer-events: none; }
+.editor-paint .dn { color: #6fd8cd; }
+.editor-paint .ff { color: #a394f5; }
+.editor-paint .ot { color: var(--txt3); }
+
+.editor textarea {
+  background: transparent;
+  color: transparent;
+  caret-color: var(--teal);
+  resize: none;
+  outline: none;
+}
+.editor textarea::selection { background: rgba(79, 227, 208, 0.22); }
+.editor textarea::placeholder { color: var(--txt3); opacity: 0.75; }
+
+/* ── rows, fields, buttons ────────────────────────────────────────────── */
+.row { display: flex; align-items: center; gap: 0.5rem; }
+.row.gap { margin-top: 0.7rem; }
+.row.labelled { margin-top: 0.55rem; }
+
+.in-label {
+  display: inline-flex; align-items: center; gap: 0.38rem;
+  width: 5.4rem; flex: none;
+  font-family: var(--mono); font-size: 0.64rem; color: var(--txt2);
+}
+.in-label svg { width: 0.95rem; height: 0.95rem; }
+
+.field {
+  flex: 1; min-width: 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: 9px;
+  background: var(--panel-hi);
+  border: 1px solid var(--line);
+  color: var(--txt);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+.field:focus { border-color: rgba(79, 227, 208, 0.45); box-shadow: 0 0 0 3px rgba(79, 227, 208, 0.08); }
+.field::placeholder { color: var(--txt3); }
+
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+.ghost {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  padding: 0.5rem 0.8rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.032);
+  border: 1px solid var(--line);
+  color: var(--txt2);
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  transition: background .18s, border-color .18s, color .18s, transform .12s;
+}
+.ghost svg { width: 0.95rem; height: 0.95rem; }
+.ghost:hover { background: rgba(255, 255, 255, 0.07); border-color: var(--line-hi); color: var(--txt); }
+.ghost:active { transform: translateY(1px); }
+.ghost.icon { padding: 0.5rem; }
+
+svg { fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
+.ghost svg, .in-label svg { vector-effect: non-scaling-stroke; }
+
+/* ── segmented ────────────────────────────────────────────────────────── */
+.seg {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+  gap: 0.3rem; margin-top: 0.75rem; padding: 0.3rem;
+  border-radius: 12px;
+  background: var(--panel-hi);
+  border: 1px solid var(--line);
+}
+.seg button {
+  display: flex; align-items: center; justify-content: center; gap: 0.45rem;
+  padding: 0.55rem 0.4rem;
+  border-radius: 9px;
+  font-family: var(--mono); font-size: 0.68rem;
+  color: var(--txt3);
+  transition: background .2s, color .2s, box-shadow .2s;
+}
+.seg button svg { width: 1rem; height: 1rem; }
+.seg button:hover { color: var(--txt2); }
+.seg button.on {
+  color: var(--teal);
+  background: linear-gradient(180deg, rgba(79, 227, 208, 0.2), rgba(90, 169, 255, 0.1));
+  box-shadow: inset 0 0 0 1px rgba(79, 227, 208, 0.35), 0 6px 18px -12px rgba(79, 227, 208, 0.9);
+}
+
+/* ── slider ───────────────────────────────────────────────────────────── */
+.slider {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+  margin-bottom: 0.55rem;
+  --accent: var(--teal);
+  --pct: 50%;
+}
+.slider[data-accent="violet"] { --accent: var(--violet); }
+.slider[data-accent="amber"]  { --accent: var(--amber); }
+
+.s-label { font-family: var(--mono); font-size: 0.68rem; color: var(--txt2); }
+.s-hint  { font-family: var(--mono); font-size: 0.58rem; color: var(--txt3); }
+.scope-note {
+  grid-column: 1 / -1;
+  margin-top: -0.15rem;
+  font-family: var(--mono);
+  font-size: 0.56rem;
+  color: var(--txt3);
+}
+.slider output {
+  font-family: var(--mono); font-size: 0.8rem; font-weight: 700;
+  color: var(--accent); min-width: 2.6em; text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.slider input[type="range"] {
+  grid-column: 1 / -1;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 1.15rem;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+}
+.slider input[type="range"]::-webkit-slider-runnable-track {
+  height: 0.36rem;
+  border-radius: 999px;
+  /* The filled part is the same element: a hard-stopped gradient at --pct,
+     which the script updates on input. No second element to keep in sync. */
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 55%, var(--blue)) 0%, var(--accent) var(--pct),
+      rgba(255, 255, 255, 0.07) var(--pct), rgba(255, 255, 255, 0.07) 100%);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.6);
+}
+.slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 0.85rem; height: 0.85rem;
+  margin-top: -0.245rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff 0%, var(--accent) 55%);
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 0 0.28rem color-mix(in srgb, var(--accent) 22%, transparent),
+              0 0 14px color-mix(in srgb, var(--accent) 70%, transparent);
+  transition: box-shadow .18s, transform .12s;
+}
+.slider input[type="range"]:hover::-webkit-slider-thumb  { transform: scale(1.12); }
+.slider input[type="range"]:active::-webkit-slider-thumb {
+  box-shadow: 0 0 0 0.45rem color-mix(in srgb, var(--accent) 20%, transparent),
+              0 0 18px color-mix(in srgb, var(--accent) 85%, transparent);
+}
+/* Recommended-value tick, positioned from data-rec by the script. */
+.slider.has-rec { position: relative; }
+.slider.has-rec::after {
+  content: "";
+  position: absolute;
+  left: var(--rec, 50%);
+  bottom: 0.05rem;
+  width: 1px; height: 0.3rem;
+  background: var(--txt3);
+  transform: translateX(-0.5px);
+}
+
+/* ── tracks / bars ────────────────────────────────────────────────────── */
+.track {
+  position: relative;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
+  overflow: visible;
+}
+.track.mini { margin-top: 0.75rem; }
+.track > i {
+  position: absolute; inset: 0 auto 0 0;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--mint) 60%, var(--teal)), var(--mint));
+  box-shadow: 0 0 12px -1px color-mix(in srgb, var(--mint) 75%, transparent);
+  transition: width .35s cubic-bezier(.22, .8, .3, 1);
+}
+.track > i::after {
+  content: "";
+  position: absolute; right: -0.18rem; top: 50%;
+  width: 0.55rem; height: 0.55rem;
+  transform: translateY(-50%) scale(0);
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0.9;
+  box-shadow: 0 0 10px currentColor;
+  transition: transform .2s;
+}
+/* The head dot only exists once there is progress -- at 0% it would sit at the
+   far left and read as a stray pixel. */
+.track > i.on::after { transform: translateY(-50%) scale(1); }
+.track > i.teal   { background: linear-gradient(90deg, color-mix(in srgb, var(--teal) 55%, var(--blue)), var(--teal)); box-shadow: 0 0 12px -1px rgba(79, 227, 208, 0.8); }
+.track > i.violet { background: linear-gradient(90deg, color-mix(in srgb, var(--violet) 55%, var(--blue)), var(--violet)); box-shadow: 0 0 12px -1px rgba(139, 124, 240, 0.8); }
+.track > i[style*="width: 0px"]::after,
+.track > i:not([style])::after { display: none; }
+
+/* ── link mix ─────────────────────────────────────────────────────────── */
+.mix { margin-top: 0.8rem; }
+.mix-bar {
+  display: flex;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+.mix-bar > i { width: 0; transition: width .3s cubic-bezier(.22, .8, .3, 1); }
+.mix-dn    { background: linear-gradient(90deg, color-mix(in srgb, var(--teal) 55%, var(--blue)), var(--teal)); }
+.mix-ff    { background: linear-gradient(90deg, color-mix(in srgb, var(--violet) 60%, var(--blue)), var(--violet)); }
+.mix-other { background: linear-gradient(90deg, var(--txt3), var(--txt2)); }
+
+.mix-legend { display: flex; flex-wrap: wrap; gap: 0.15rem 1rem; margin-top: 0.55rem; }
+.lg {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  font-family: var(--mono); font-size: 0.6rem; color: var(--txt3);
+}
+.lg i { width: 0.36rem; height: 0.36rem; border-radius: 50%; background: currentColor; }
+.lg b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.lg.dn { color: var(--teal); }
+.lg.ff { color: var(--violet); }
+.lg.ot { color: var(--txt3); }
+.lg.off { color: var(--txt3); opacity: 0.65; }
+
+/* ── hero band ────────────────────────────────────────────── */
+/* Four equal boxes gave four equal weights to numbers that are not equal. The
+   rate is the one being watched, so it gets the whole left side and the plot
+   underneath; completed, downloaded and ETA are reference and sit small. */
+.card.hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  gap: 0.9rem 2rem;
+  align-items: end;
+  padding: 1.05rem 1.3rem 0.9rem;
+}
+
+.hero-lead { grid-column: 1; grid-row: 1; display: grid; gap: 0.5rem; }
+.hero-label {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-family: var(--mono); font-size: 0.6rem; font-weight: 700;
+  letter-spacing: 0.26em; text-transform: uppercase; color: var(--txt2);
+}
+.hero-value { display: flex; align-items: baseline; gap: 0.55rem; }
+.hero-value b {
+  font-family: var(--mono);
+  /* The hero figure. Big enough to read from across the room, which is the
+     posture this app is actually used in. */
+  font-size: clamp(2.9rem, 3.4vw, 4.3rem);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 0.9;
+  color: var(--teal);
+  /* tabular-nums against the usual advice for a display figure: this one is
+     re-rendered ~12x a second, and proportional digits make it jitter. */
+  font-variant-numeric: tabular-nums;
+}
+.hero-value span { font-family: var(--mono); font-size: 0.78rem; color: var(--txt3); }
+
+.hero-stats {
+  grid-column: 2; grid-row: 1;
+  display: flex; justify-content: flex-end; align-items: flex-end;
+  gap: clamp(1.1rem, 2.4vw, 2.6rem);
+  min-width: 0;
+}
+.hstat { display: grid; gap: 0.3rem; min-width: 0; }
+.hstat-label {
+  font-family: var(--mono); font-size: 0.55rem; font-weight: 700;
+  letter-spacing: 0.2em; text-transform: uppercase; color: var(--txt3);
+  white-space: nowrap;
+}
+.hstat-value { display: flex; align-items: baseline; gap: 0.3rem; }
+.hstat-value b {
+  font-family: var(--mono); font-size: 1.3rem; font-weight: 700;
+  letter-spacing: -0.02em; line-height: 1;
+  font-variant-numeric: tabular-nums;
+  transition: color .3s, text-shadow .3s;
+}
+.hstat-value span { font-family: var(--mono); font-size: 0.62rem; color: var(--txt3); }
+.hstat[data-accent="mint"]   .hstat-value b { color: var(--mint); }
+.hstat[data-accent="violet"] .hstat-value b { color: var(--violet); }
+.hstat[data-accent="plain"]  .hstat-value b { color: var(--txt); }
+.hstat.hot[data-accent="mint"] .hstat-value b { text-shadow: 0 0 16px rgba(53, 214, 164, 0.5); }
+.hstat-sub { font-family: var(--mono); font-size: 0.58rem; color: var(--txt3); white-space: nowrap; }
+.hstat .track.mini { width: 7rem; max-width: 100%; }
+
+.spark-wrap { position: relative; grid-column: 1 / -1; grid-row: 2; }
+.spark { display: block; width: 100%; height: 3.3rem; overflow: visible; }
+.spark polyline {
+  fill: none;
+  stroke: url(#sparkStroke);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 4px rgba(79, 227, 208, 0.75));
+}
+.spark polygon { stroke: none; }
+
+/* The window mean. A sparkline scaled to its own peak puts that peak at the
+   same height whatever the rate is, so the shape alone cannot say whether a run
+   is steady or spiky. This hairline is the only reference in the box -- it is
+   recessive on purpose and carries no label. */
+.spark-mean {
+  visibility: hidden;
+  stroke: rgba(140, 175, 225, 0.3);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  transition: y1 .4s linear, y2 .4s linear;
+}
+
+.spark-head {
+  position: absolute;
+  left: var(--hx, 0%);
+  top: var(--hy, 100%);
+  width: 8px; height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: #fff;
+  /* 2px ring in the surface colour so the dot stays legible where it sits on
+     top of its own line, then the glow outside it. */
+  box-shadow: 0 0 0 2px var(--panel-solid), 0 0 8px 1px var(--teal);
+  opacity: 0;
+  transition: opacity .3s;
+  pointer-events: none;
+}
+.card.hero.hot .spark-head { opacity: 1; }
+
+/* ── pipeline ─────────────────────────────────────────────────────────── */
+.pipeline .card-head { flex-wrap: wrap; }
+.pipeline .phase {
+  flex: 1 1 100%;
+  margin-top: -0.35rem;
+  font-family: var(--mono); font-size: 0.66rem; color: var(--amber);
+}
+.lane { display: grid; grid-template-columns: 1fr auto; gap: 0.3rem 0.7rem; margin-top: 0.55rem; }
+.lane-label {
+  font-family: var(--mono); font-size: 0.58rem; font-weight: 700;
+  letter-spacing: 0.22em; text-transform: uppercase; color: var(--txt3);
+}
+.lane-count { font-family: var(--mono); font-size: 0.63rem; color: var(--txt2); font-variant-numeric: tabular-nums; }
+.lane .track { grid-column: 1 / -1; }
+
+/* ── feed ─────────────────────────────────────────────────────────────── */
+.card.feed { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; padding-bottom: 0.8rem; }
+.feed-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem; }
+
+.tabs { position: relative; display: flex; gap: 0.25rem; }
+.tabs button {
+  padding: 0.45rem 0.85rem;
+  border-radius: 9px;
+  font-family: var(--mono); font-size: 0.66rem; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--txt3);
+  transition: color .2s, background .2s;
+}
+.tabs button:hover { color: var(--txt2); }
+.tabs button.on { color: var(--teal); background: rgba(79, 227, 208, 0.08); }
+.tabs button b { margin-left: 0.4em; color: var(--txt2); font-weight: 700; }
+.tab-underline {
+  position: absolute; bottom: -0.25rem; left: 0;
+  height: 2px; width: 0;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--blue), var(--teal));
+  box-shadow: 0 0 10px rgba(79, 227, 208, 0.8);
+  transition: transform .32s cubic-bezier(.22, .8, .3, 1), width .32s cubic-bezier(.22, .8, .3, 1);
+}
+
+.feed-body { position: relative; min-height: 0; overflow: hidden; }
+.files { height: 100%; overflow-y: auto; display: grid; gap: 0.4rem; align-content: start; padding-right: 0.35rem; }
+/* Same trap as .empty: `display: grid` outranks the UA `[hidden]` rule, so the
+   transfer list stayed painted over the Log tab -- both tabs looked identical. */
+.files[hidden] { display: none; }
+.log[hidden]   { display: none; }
+
+/* ── file row ─────────────────────────────────────────────────────────── */
+.frow {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.9rem 0.7rem;
+  border-radius: 13px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008));
+  border: 1px solid var(--line);
+  --c: var(--txt3);
+  transition: border-color .2s, background .2s, transform .12s;
+  content-visibility: auto;
+  contain-intrinsic-size: 3.4rem;
+}
+.frow:hover { border-color: var(--line-hi); transform: translateX(2px); }
+.frow[data-state="download"],
+.frow[data-state="extract"] { border-color: color-mix(in srgb, var(--c) 34%, transparent); background: linear-gradient(180deg, color-mix(in srgb, var(--c) 9%, transparent), rgba(255, 255, 255, 0.01)); }
+.frow[data-state="ok"]   { --c: var(--mint); }
+.frow[data-state="fail"] { --c: var(--red); }
+.frow[data-state="kill"] { --c: var(--amber); }
+.frow[data-state="download"] { --c: var(--violet); }
+.frow[data-state="extract"]  { --c: var(--teal); }
+.frow[data-state="queue"]    { --c: var(--txt3); }
+
+.frow .stripe {
+  width: 3px; height: 1.5rem; border-radius: 2px;
+  background: var(--c);
+  box-shadow: 0 0 10px -1px var(--c);
+}
+
+.ring { width: 1.6rem; height: 1.6rem; flex: none; }
+.ring circle { fill: none; stroke-width: 2.4; vector-effect: non-scaling-stroke; }
+.ring .ring-bg { stroke: color-mix(in srgb, var(--c) 22%, transparent); }
+.ring .ring-fg {
+  stroke: var(--c);
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  stroke-dasharray: 0 100;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--c) 80%, transparent));
+  transition: stroke-dasharray .3s linear;
+}
+.ring .ring-tick,
+.ring .ring-cross { stroke: var(--c); stroke-width: 2.2; display: none; }
+.frow[data-state="ok"]   .ring .ring-tick  { display: block; }
+.frow[data-state="fail"] .ring .ring-cross { display: block; }
+.frow[data-state="ok"]   .ring .ring-fg    { stroke-dasharray: 100 100 !important; }
+.frow[data-state="fail"] .ring .ring-fg    { stroke-dasharray: 0 100 !important; }
+.frow[data-state="extract"] .ring,
+.frow[data-state="kill"]    .ring { animation: spin 1.5s linear infinite; }
+.frow[data-state="extract"] .ring .ring-fg,
+.frow[data-state="kill"]    .ring .ring-fg { stroke-dasharray: 26 100 !important; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.frow-text { min-width: 0; display: grid; gap: 0.2rem; }
+.fname {
+  font-family: var(--mono); font-size: 0.7rem; color: var(--txt);
+  white-space: nowrap; overflow: hidden;
+}
+.fstate { display: flex; align-items: center; gap: 0.4rem; font-family: var(--mono); font-size: 0.58rem; }
+.fstate i { width: 0.32rem; height: 0.32rem; border-radius: 50%; background: var(--c); }
+.fstate em { font-style: normal; color: color-mix(in srgb, var(--c) 70%, var(--txt2)); }
+.fstate u  { text-decoration: none; color: var(--txt3); font-variant-numeric: tabular-nums; }
+
+.fspeed {
+  font-family: var(--mono); font-size: 0.7rem; font-weight: 700;
+  color: color-mix(in srgb, var(--c) 55%, var(--txt));
+  font-variant-numeric: tabular-nums;
+}
+
+.frow .foot {
+  position: absolute; left: 0.9rem; right: 0.9rem; bottom: 0.28rem;
+  height: 2px; border-radius: 2px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity .2s;
+}
+.frow[data-state="download"] .foot,
+.frow[data-state="kill"] .foot { opacity: 1; }
+.frow .foot > i {
+  display: block; height: 100%; width: 0;
+  border-radius: 2px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 45%, #fff), var(--c));
+  transition: width .3s linear;
+}
+
+/* ── empty / log ──────────────────────────────────────────────────────── */
+.empty {
+  position: absolute; inset: 0;
+  display: grid; place-content: center; justify-items: center; gap: 0.35rem;
+  text-align: center;
+  pointer-events: none;
+}
+/* [hidden] is a UA rule; `.empty { display: grid }` outranks it, so the empty
+   state has to hide itself explicitly or it floats over the file list. */
+.empty[hidden] { display: none; }
+.empty .mark-svg {
+  width: 8rem; height: 8rem;
+  opacity: 0.55;
+  filter: drop-shadow(0 0 24px rgba(79, 227, 208, 0.35));
+  animation: float 7s ease-in-out infinite;
+}
+.empty .mark-svg .mk-orbit { animation: orbit 9s ease-in-out infinite; transform-origin: 50% 50%; }
+.empty p { font-family: var(--mono); font-size: 0.72rem; color: var(--txt2); margin-top: 0.5rem; }
+.empty small { font-family: var(--mono); font-size: 0.6rem; color: var(--txt3); }
+@keyframes float {
+  0%, 100% { transform: translateY(-0.25rem); }
+  50%      { transform: translateY(0.25rem); }
+}
+
+.log {
+  height: 100%; overflow-y: auto;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--r-in);
+  background: rgba(3, 5, 9, 0.6);
+  border: 1px solid var(--line);
+  font-family: var(--mono); font-size: 0.68rem; line-height: 1.62;
+  color: var(--txt2);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.log .ok    { color: var(--mint); }
+.log .fail  { color: var(--red); }
+.log .warn,
+.log .kill,
+.log .retry { color: var(--amber); }
+.log .info  { color: var(--teal); }
+.log .dim   { color: var(--txt3); }
+
+/* ── primary button ───────────────────────────────────────────────────── */
+.primary {
+  position: relative;
+  display: flex; align-items: center; justify-content: center; gap: 0.6rem;
+  width: 100%;
+  padding: 0.95rem 1rem;
+  border-radius: 14px;
+  font-family: var(--mono);
+  font-size: 0.86rem; font-weight: 700;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  color: #04070c;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--teal) 72%, var(--blue)), var(--teal));
+  box-shadow: 0 14px 34px -16px rgba(79, 227, 208, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  transition: transform .12s, box-shadow .25s, background .25s;
+}
+.primary svg { width: 1.05rem; height: 1.05rem; fill: currentColor; stroke: none; }
+.primary .ico-stop { display: none; }
+.primary:hover  { box-shadow: 0 18px 40px -14px rgba(79, 227, 208, 1), inset 0 1px 0 rgba(255, 255, 255, 0.5); }
+.primary:active { transform: translateY(1px); }
+
+.primary[data-state="running"],
+.primary[data-state="stopping"] {
+  background: linear-gradient(135deg, #ff7a8c, var(--red));
+  box-shadow: 0 14px 34px -16px rgba(255, 92, 114, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  animation: pulse-btn 2.4s ease-in-out infinite;
+}
+.primary[data-state="running"] .ico-play,
+.primary[data-state="stopping"] .ico-play { display: none; }
+.primary[data-state="running"] .ico-stop,
+.primary[data-state="stopping"] .ico-stop { display: block; }
+
+@keyframes pulse-btn {
+  0%, 100% { box-shadow: 0 14px 34px -16px rgba(255, 92, 114, 0.9),  inset 0 1px 0 rgba(255, 255, 255, 0.4); }
+  50%      { box-shadow: 0 14px 44px -12px rgba(255, 92, 114, 1),    inset 0 1px 0 rgba(255, 255, 255, 0.5); }
+}
+
+/* ── statusbar ────────────────────────────────────────────────────────── */
+.statusbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.5rem 1.4rem;
+  background: rgba(3, 5, 9, 0.72);
+  border-top: 1px solid var(--line);
+  backdrop-filter: blur(14px);
+}
+.stack { font-family: var(--mono); font-size: 0.58rem; color: var(--txt3); }
+.stack i { margin: 0 0.5em; font-style: normal; opacity: 0.55; }
+.badges { display: flex; align-items: center; gap: 0.45rem; }
+
+/* ── toasts ───────────────────────────────────────────────────────────── */
+.toasts { position: fixed; right: 1.2rem; bottom: 3.2rem; display: grid; gap: 0.5rem; z-index: 20; }
+.toast {
+  padding: 0.65rem 0.9rem;
+  border-radius: 11px;
+  background: rgba(12, 17, 26, 0.94);
+  border: 1px solid var(--line-hi);
+  box-shadow: var(--shadow);
+  font-family: var(--mono); font-size: 0.66rem;
+  color: var(--txt);
+  animation: toast-in .22s ease-out;
+}
+.toast.bad { border-color: rgba(255, 92, 114, 0.5); color: #ffd3d9; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+
+/* ── scrollbars ───────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(140, 175, 225, 0.16);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(140, 175, 225, 0.3); background-clip: content-box; }
+
+/* ── narrow windows ──────────────────────────────────────────────────── */
+@media (max-width: 1080px) {
+  .stage { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); overflow-y: auto; }
+  .side { grid-template-rows: auto auto; }
+  .side-scroll { overflow: visible; }
+  .card.hero { grid-template-columns: minmax(0, 1fr); }
+  .hero-stats { grid-column: 1; grid-row: 2; justify-content: flex-start; }
+  .spark-wrap { grid-row: 3; }
+  .card.feed { min-height: 26rem; }
+}
+
+/* There is no reduced-motion block here, and that is a decision rather than an
+   oversight. Windows reports "reduce" whenever its own animation setting is off,
+   which on this machine it is -- set that way for performance, not for comfort.
+   Every version of honouring it deleted the thing the app is for: first the whole
+   design, then the cold open, then the logo orbit and the wordmark sheen. The
+   person running this asked for the motion explicitly, and an explicit request
+   outranks an inferred default. Nothing flashes and every loop is slow, which is
+   the part of that guidance that actually matters. */
+
+/* ════════════════════════════════════════════════════════════════════════
+   Motion & reactivity
+   Every animation here is either a state change the operator needs to notice
+   (a transfer finishing, a run starting) or a 200ms affordance on something
+   they touched. Nothing loops for decoration except the run-state pulses.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ── language switch ─────────────────────────────────────────────────── */
+.lang {
+  display: flex;
+  padding: 0.2rem;
+  gap: 0.15rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(10px);
+}
+.lang button {
+  padding: 0.26rem 0.6rem;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--txt3);
+  transition: color .2s, background .2s, box-shadow .2s;
+}
+.lang button:hover { color: var(--txt2); }
+.lang button.on {
+  color: var(--teal);
+  background: linear-gradient(180deg, rgba(79, 227, 208, 0.2), rgba(90, 169, 255, 0.08));
+  box-shadow: inset 0 0 0 1px rgba(79, 227, 208, 0.35);
+}
+
+/* ── global progress hairline under the header ───────────────────────── */
+.topbar { position: relative; }
+.topbar-progress {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  height: 2px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.topbar-progress > i {
+  display: block; height: 100%; width: 0;
+  background: linear-gradient(90deg, var(--blue), var(--teal) 55%, var(--violet));
+  box-shadow: 0 0 12px rgba(79, 227, 208, 0.9);
+  transition: width .45s cubic-bezier(.22, .8, .3, 1);
+}
+
+/* ── card entrance ───────────────────────────────────────────────────── */
+@keyframes reveal-up {
+  from { opacity: 0; transform: translateY(10px) scale(.994); }
+  to   { opacity: 1; transform: none; }
+}
+.reveal { animation: reveal-up .42s cubic-bezier(.22, .9, .3, 1) both; animation-delay: var(--d, 0ms); }
+
+/* ── cursor spotlight on cards ───────────────────────────────────────── */
+/* A 200px light that follows the pointer. --mx/--my are written by app.js on
+   pointermove, so the effect costs one custom-property update per frame and no
+   layout at all. */
+.card { --mx: 50%; --my: 0%; isolation: isolate; }
+.card::before {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(220px circle at var(--mx) var(--my),
+              rgba(120, 190, 255, 0.055), transparent 65%);
+  opacity: 0;
+  transition: opacity .25s;
+  pointer-events: none;
+  z-index: -1;
+}
+.card:hover::before { opacity: 1; }
+
+/* ── press feedback ──────────────────────────────────────────────────── */
+.ghost:active, .lang button:active, .seg button:active, .tabs button:active { transform: translateY(1px); }
+button:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 2px solid rgba(79, 227, 208, 0.55);
+  outline-offset: 2px;
+}
+
+/* ── active-lane shimmer ─────────────────────────────────────────────── */
+/* Only while something is actually moving: a still bar with a travelling
+   highlight would lie about the transfer being alive. */
+@keyframes lane-shimmer { to { transform: translateX(220%); } }
+.track > i.live::before {
+  content: "";
+  position: absolute; inset: 0 auto 0 0;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: translateX(-100%);
+  animation: lane-shimmer 1.5s ease-in-out infinite;
+}
+.track > i { overflow: hidden; }
+
+/* ── file rows: enter, finish, reorder ───────────────────────────────── */
+@keyframes row-in {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: none; }
+}
+.frow { animation: row-in .3s cubic-bezier(.22, .9, .3, 1) both; }
+
+/* A finished row flashes once. Cheap, and it is the one event worth catching
+   out of the corner of an eye. */
+@keyframes row-done {
+  0%   { box-shadow: 0 0 0 0 rgba(53, 214, 164, 0.55); }
+  100% { box-shadow: 0 0 0 0.65rem rgba(53, 214, 164, 0); }
+}
+.frow.just-done { animation: row-in .3s both, row-done .9s ease-out; }
+
+.frow[data-state="download"] .stripe,
+.frow[data-state="extract"] .stripe { animation: stripe-pulse 1.8s ease-in-out infinite; }
+@keyframes stripe-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 10px -1px var(--c); }
+  50%      { opacity: .55; box-shadow: 0 0 4px -1px var(--c); }
+}
+
+/* Transfers in flight sort above finished ones (order set by app.js), and the
+   finished tail dims so the eye lands on what is moving. */
+.frow[data-state="ok"], .frow[data-state="fail"] { opacity: 0.82; }
+.frow[data-state="ok"]:hover, .frow[data-state="fail"]:hover { opacity: 1; }
+
+/* ── stat numbers ────────────────────────────────────────────────────── */
+.hero-value b { transition: color .3s, text-shadow .3s; will-change: contents; }
+.card.hero.hot .hero-value b { text-shadow: 0 0 26px rgba(79, 227, 208, 0.5); }
+
+/* ── tab cross-fade ──────────────────────────────────────────────────── */
+@keyframes tab-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.files:not([hidden]), .log:not([hidden]) { animation: tab-in .22s ease-out both; }
+
+/* ── empty state ─────────────────────────────────────────────────────── */
+.empty .mark-svg { animation: float 7s ease-in-out infinite, reveal-up .5s both; }
+
+/* ── toast exit ──────────────────────────────────────────────────────── */
+.toast.out { animation: toast-out .25s ease-in forwards; }
+@keyframes toast-out { to { opacity: 0; transform: translateX(14px); } }
+
+/* ── first-paint skeleton on the stat numbers ────────────────────────── */
+
+/* ════════════════════════════════════════════════════════════════════════
+   Registered custom properties
+   A custom property is an unparsed token until it is registered, so a gradient
+   angle cannot be transitioned or tweened: the engine has no type to
+   interpolate. @property gives it one. That is the whole trick behind every
+   moving gradient below -- without the registration these animations do not
+   degrade, they simply never run.
+   ════════════════════════════════════════════════════════════════════════ */
+
+@property --spin {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes sweep { to { --spin: 1turn; } }
+
+/* ── conic trace on transfers in flight ──────────────────────────────── */
+/* Painted into a 1px border box through a mask: no extra element, nothing
+   covering the filename, and it stops existing the moment the row stops
+   moving. Only `download` rows get it -- extraction already has the spinning
+   ring, and 16 extractor rows tracing at once is a lot of compositing for a
+   fact the ring already tells you. */
+.frow[data-state="download"]::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  padding: 1px;
+  border-radius: 14px;
+  background: conic-gradient(from var(--spin),
+              transparent 0deg,
+              color-mix(in srgb, var(--c) 92%, #fff) 38deg,
+              transparent 108deg,
+              transparent 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: sweep 3.2s linear infinite;
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+/* ── running halo on the primary button ──────────────────────────────── */
+/* The button is the one control that changes meaning mid-run (Start becomes
+   Stop), so the halo is tied to the run being live, not to hover. */
+.primary[data-state="running"]::after,
+.primary[data-state="stopping"]::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  padding: 2px;
+  border-radius: 16px;
+  background: conic-gradient(from var(--spin),
+              transparent 0deg,
+              rgba(255, 255, 255, 0.85) 26deg,
+              transparent 96deg,
+              transparent 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: sweep 2.4s linear infinite;
+  pointer-events: none;
+}
+
+/* ── run-reactive ambience ───────────────────────────────────────────── */
+/* --heat is written by app.js from the speed the engine already reports. It is
+   an intensity for the glow and never a second opinion on the number itself.
+   Registering it as <number> is what lets it ease between snapshots instead of
+   stepping twelve times a second, and only `opacity` moves, so a full-screen
+   layer stays on the compositor and never repaints. */
+@property --heat {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+.ambience-glow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 90% at 100% 0%,  rgba(79, 227, 208, 0.17), transparent 58%),
+    radial-gradient(90%  70% at 84%  4%,  rgba(139, 124, 240, 0.15), transparent 60%),
+    radial-gradient(80%  60% at 6%   96%, rgba(90, 169, 255, 0.11), transparent 66%);
+  opacity: var(--heat);
+  transition: opacity .9s ease-out;
+}
+
+/* ── scroller edge fade ──────────────────────────────────────────────── */
+/* A plain mask would fade the first row even when the list is scrolled to the
+   top, which reads as a rendering fault rather than as depth. Driving the two
+   fade lengths off scroll(self) fades only the edge that actually has content
+   past it. When the list does not overflow the timeline is inactive, the
+   registered initial values (0px) apply, and there is no mask at all. */
+@property --fade-top {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --fade-bot {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@supports (animation-timeline: scroll(self)) {
+  .files, .side-scroll, .log {
+    -webkit-mask-image: linear-gradient(to bottom,
+                        transparent 0, #000 var(--fade-top),
+                        #000 calc(100% - var(--fade-bot)), transparent 100%);
+    mask-image: linear-gradient(to bottom,
+                transparent 0, #000 var(--fade-top),
+                #000 calc(100% - var(--fade-bot)), transparent 100%);
+    animation: fade-edges linear both;
+    animation-timeline: scroll(self);
+  }
+
+  @keyframes fade-edges {
+    0%       { --fade-top: 0rem;   --fade-bot: 1.5rem; }
+    6%, 94%  { --fade-top: 1.5rem; --fade-bot: 1.5rem; }
+    100%     { --fade-top: 1.5rem; --fade-bot: 0rem; }
+  }
+}
+
+/* ── tab switch: view transition ─────────────────────────────────────── */
+/* Only the feed body is named, so the sidebar and the stat cards stay in the
+   root snapshot and do not move. Guarded by @supports and by a JS capability
+   check, because on an engine without the API the panels must still swap. */
+@supports (view-transition-name: none) {
+  .feed-body { view-transition-name: feed-panel; }
+
+  ::view-transition-old(feed-panel) { animation: vt-out .18s ease-in both; }
+  ::view-transition-new(feed-panel) { animation: vt-in .26s cubic-bezier(.22, .9, .3, 1) both; }
+}
+
+@keyframes vt-out { to   { opacity: 0; transform: translateY(-6px) scale(.996); } }
+@keyframes vt-in  { from { opacity: 0; transform: translateY(8px)  scale(.996); } }
+
+/* ════════════════════════════════════════════════════════════════════════
+   Transfer filter, drop target, shortcut panel
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ── filter row ──────────────────────────────────────────────────────── */
+.feed-tools { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+
+.filter { position: relative; display: flex; align-items: center; }
+.filter svg {
+  position: absolute; left: 0.55rem;
+  width: 0.72rem; height: 0.72rem;
+  fill: none; stroke: var(--txt3); stroke-width: 1.5;
+  stroke-linecap: round; stroke-linejoin: round;
+  pointer-events: none;
+}
+.filter input {
+  width: 9.5rem;
+  padding: 0.4rem 0.6rem 0.4rem 1.6rem;
+  border-radius: 9px;
+  background: rgba(3, 5, 9, 0.5);
+  border: 1px solid var(--line);
+  font-family: var(--mono); font-size: 0.64rem;
+  color: var(--txt);
+  transition: border-color .2s, width .22s cubic-bezier(.22, .8, .3, 1);
+}
+.filter input:focus { border-color: var(--line-hi); width: 12rem; outline: none; }
+.filter input::placeholder { color: var(--txt3); }
+
+.fchips { display: flex; gap: 0.2rem; }
+.fchips button {
+  padding: 0.36rem 0.55rem;
+  border-radius: 8px;
+  font-family: var(--mono); font-size: 0.6rem; font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--txt3);
+  border: 1px solid transparent;
+  transition: color .2s, background .2s, border-color .2s;
+}
+.fchips button:hover { color: var(--txt2); }
+.fchips button.on { color: var(--teal); background: rgba(79, 227, 208, 0.08); border-color: rgba(79, 227, 208, 0.25); }
+
+/* Same trap the empty state and the tab panels already hit: .frow is a grid, and
+   `display: grid` outranks the UA rule for [hidden], so a filtered-out row would
+   stay on screen. */
+.frow[hidden] { display: none; }
+
+/* ── drop target ─────────────────────────────────────────────────────── */
+.dropzone {
+  position: fixed; inset: 0; z-index: 40;
+  display: grid; place-items: center;
+  padding: 2.5rem;
+  background: rgba(3, 5, 9, 0.72);
+  backdrop-filter: blur(6px);
+  animation: tab-in .16s ease-out both;
+}
+.dropzone[hidden] { display: none; }
+.dropzone-inner {
+  display: grid; justify-items: center; gap: 0.4rem;
+  width: 100%; height: 100%;
+  align-content: center;
+  border: 2px dashed rgba(79, 227, 208, 0.5);
+  border-radius: var(--r-card);
+  background: rgba(79, 227, 208, 0.05);
+}
+.dropzone svg {
+  width: 2.6rem; height: 2.6rem;
+  fill: none; stroke: var(--teal); stroke-width: 1.5;
+  stroke-linecap: round; stroke-linejoin: round;
+  filter: drop-shadow(0 0 14px rgba(79, 227, 208, 0.5));
+}
+.dropzone p { font-family: var(--mono); font-size: 0.8rem; color: var(--txt); margin-top: 0.5rem; }
+.dropzone small { font-family: var(--mono); font-size: 0.62rem; color: var(--txt3); }
+
+/* ── shortcut panel ──────────────────────────────────────────────────── */
+.modal {
+  position: fixed; inset: 0; z-index: 50;
+  display: grid; place-items: center;
+  padding: 2rem;
+  background: rgba(3, 5, 9, 0.6);
+  backdrop-filter: blur(8px);
+  animation: tab-in .18s ease-out both;
+}
+.modal[hidden] { display: none; }
+.modal-card {
+  width: min(26rem, 100%);
+  padding: 1.1rem 1.25rem 1.3rem;
+  border-radius: var(--r-card);
+  background: var(--panel-hi);
+  border: 1px solid var(--line-hi);
+  box-shadow: var(--shadow);
+  animation: reveal-up .28s cubic-bezier(.22, .9, .3, 1) both;
+}
+.keys { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.55rem 1rem; align-items: center; }
+.keys dt { display: flex; gap: 0.25rem; }
+.keys dd { font-family: var(--mono); font-size: 0.66rem; color: var(--txt2); }
+kbd {
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line-hi);
+  border-bottom-width: 2px;
+  font-family: var(--mono); font-size: 0.62rem; font-weight: 700;
+  color: var(--txt);
+}
+
+/* ── narrow windows ──────────────────────────────────────────────────── */
+/* The tools row is the first thing to run out of room. The filter keeps its
+   place -- on a long batch it is the control that matters -- and the state
+   chips fold away, since the same filtering is one keystroke away. */
+@media (max-width: 1320px) {
+  .fchips { display: none; }
+}
+
+/* ── row action ──────────────────────────────────────────────────────── */
+/* The column is always in the grid, only its contents fade. Revealing it by
+   adding a column on hover would reflow every row under the pointer, in a list
+   that is already moving on its own. */
+.frow { grid-template-columns: auto auto minmax(0, 1fr) auto auto; }
+
+.frow-copy {
+  display: grid; place-items: center;
+  width: 1.5rem; height: 1.5rem;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  opacity: 0;
+  transition: opacity .18s, border-color .18s, background .18s;
+}
+.frow-copy svg {
+  width: 0.72rem; height: 0.72rem;
+  fill: none; stroke: var(--txt2); stroke-width: 1.4;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.frow:hover .frow-copy { opacity: 1; }
+.frow-copy:hover { background: rgba(255, 255, 255, 0.06); border-color: var(--line-hi); }
+.frow-copy:focus-visible { opacity: 1; }
+.frow-copy.done svg { stroke: var(--mint); }
+
+/* ── run summary ─────────────────────────────────────────────────────── */
+.sum-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-bottom: 0.9rem;
+}
+.sum-grid div {
+  display: grid; gap: 0.25rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--r-in);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+}
+.sum-grid span {
+  font-family: var(--mono); font-size: 0.56rem; font-weight: 700;
+  letter-spacing: 0.2em; text-transform: uppercase; color: var(--txt3);
+}
+.sum-grid b {
+  font-family: var(--mono); font-size: 1.15rem; font-weight: 700;
+  color: var(--txt); font-variant-numeric: tabular-nums;
+}
+.sum-grid div:nth-child(1) b { color: var(--mint); }
+.sum-grid div:nth-child(2) b { color: var(--red); }
+
+.sum-actions { justify-content: flex-start; }
+.sum-actions button[hidden] { display: none; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   Cold open
+   Nothing here runs until app.js adds .play, which it does on the first frame
+   the compositor actually produces. The --app window can be mapped after the
+   document has already finished loading, and an animation that played into a
+   window nobody could see yet is indistinguishable from no animation at all --
+   which is exactly how this first got reported as "it never appears".
+   ════════════════════════════════════════════════════════════════════════ */
+
+:root { --boot-delay: 1250ms; }
+
+/* The card cascade is held, not merely delayed. A delay alone would already
+   have elapsed by the time a late window appears, and the cards would simply
+   be sitting there fully drawn. */
+.reveal {
+  animation-delay: calc(var(--d, 0ms) + var(--boot-delay, 0ms));
+  animation-play-state: paused;
+}
+:root.booted .reveal { animation-play-state: running; }
+
+.boot {
+  position: fixed; inset: 0; z-index: 60;
+  display: grid; place-content: center; justify-items: center;
+  gap: 1.35rem;
+  overflow: hidden;
+  background: var(--ink);
+}
+.boot.out { animation: boot-out .42s cubic-bezier(.4, 0, .6, 1) forwards; }
+@keyframes boot-out { to { opacity: 0; transform: scale(1.06); filter: blur(7px); } }
+
+/* A single raking beam across the whole field. It is what makes the open read
+   as cinematic rather than as a spinner on a black page. */
+.boot::before {
+  content: "";
+  position: absolute; inset: -20%;
+  background: linear-gradient(105deg,
+              transparent 34%,
+              rgba(255, 255, 255, 0.05) 47%,
+              rgba(79, 227, 208, 0.1) 50%,
+              rgba(139, 124, 240, 0.07) 53%,
+              transparent 66%);
+  transform: translateX(-125%);
+  opacity: 0;
+}
+.boot.play::before { animation: beam 1.4s cubic-bezier(.3, 0, .2, 1) .3s both; }
+@keyframes beam {
+  0%   { transform: translateX(-125%); opacity: 0; }
+  22%  { opacity: 1; }
+  100% { transform: translateX(125%); opacity: 0; }
+}
+
+.boot-mark { position: relative; display: grid; place-items: center; }
+.boot-moon { width: 21rem; height: 21rem; opacity: 0; }
+.boot.play .boot-moon { animation: moonrise 1.25s cubic-bezier(.16, 1, .3, 1) both; }
+
+/* The crescent draws itself before it fills. pathLength="100" on the path is
+   what makes the dash values readable numbers instead of whatever arc length
+   that particular curve happens to have. */
+.boot .mk-crescent {
+  fill-opacity: 0;
+  stroke: url(#moonGrad);
+  stroke-width: 2.2;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 6px rgba(95, 240, 220, 0.7));
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+}
+.boot.play .mk-crescent {
+  animation: draw-on 1.15s cubic-bezier(.45, 0, .2, 1) .12s both,
+             fill-on .65s ease-out 1.05s both;
+}
+@keyframes draw-on { to { stroke-dashoffset: 0; } }
+@keyframes fill-on { to { fill-opacity: 1; } }
+
+.boot .mk-orbit { opacity: 0; transform-origin: 50% 50%; }
+.boot.play .mk-orbit { animation: orbit-in 1.5s cubic-bezier(.3, 0, .2, 1) .3s both; }
+@keyframes orbit-in {
+  0%   { opacity: 0; ry: 3px;  transform: rotate(-70deg); }
+  55%  { opacity: 1; }
+  100% { opacity: 1; ry: 24px; transform: rotate(-24deg); }
+}
+
+/* The mark arrives out of the dark instead of fading in flat: it lifts, comes
+   into focus, and the glow only catches up once it has landed. */
+@keyframes moonrise {
+  0%   { opacity: 0; transform: translateY(2.3rem) scale(.72); }
+  40%  { opacity: 1; }
+  100% { opacity: 1; transform: none;
+         filter: drop-shadow(0 0 34px rgba(95, 240, 220, 0.7))
+                 drop-shadow(0 0 84px rgba(185, 140, 245, 0.45)); }
+}
+
+.boot-mark::after {
+  content: "";
+  position: absolute; z-index: -1;
+  width: 30rem; height: 30rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(79, 227, 208, 0.2),
+                                      rgba(139, 124, 240, 0.1) 45%, transparent 70%);
+  opacity: 0;
+}
+.boot.play .boot-mark::after { animation: bloom 1.6s ease-out both; }
+@keyframes bloom {
+  0%   { opacity: 0; transform: scale(.35); }
+  45%  { opacity: 1; }
+  100% { opacity: .6; transform: scale(1); }
+}
+
+/* One pass of the same conic sweep the running rows use, so the cold open is
+   built from the app's own vocabulary rather than a separate idea. */
+.boot-sweep {
+  position: absolute;
+  width: 19rem; height: 19rem;
+  border-radius: 50%;
+  padding: 1px;
+  opacity: 0;
+  background: conic-gradient(from var(--spin),
+              transparent 0deg, rgba(79, 227, 208, 0.95) 32deg,
+              rgba(139, 124, 240, 0.55) 62deg, transparent 124deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+.boot.play .boot-sweep {
+  animation: sweep 1.5s cubic-bezier(.4, 0, .2, 1) .12s both,
+             boot-fade 1.5s ease-out .12s both;
+}
+@keyframes boot-fade { 0% { opacity: 0; } 26% { opacity: 1; } 100% { opacity: 0; } }
+
+.boot-word {
+  font-size: 1.75rem;
+  line-height: 1;
+  opacity: 0;
+}
+.boot.play .boot-word { animation: wordmark-settle .85s cubic-bezier(.22, .9, .3, 1) .42s both; }
+.boot-word span   { color: var(--txt2); font-weight: 300; }
+.boot-word strong { color: #fff; font-weight: 650; margin-left: 0.32em; }
+
+/* Letter-spacing closing inward reads as the name resolving into focus, and it
+   is the one text animation that costs no layout outside this element. */
+@keyframes wordmark-settle {
+  from { opacity: 0; letter-spacing: 0.42em; filter: blur(5px); }
+  to   { opacity: 1; letter-spacing: -0.015em; filter: blur(0); }
+}
+
+.boot-bar {
+  width: 13rem; height: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+  opacity: 0;
+}
+.boot.play .boot-bar { animation: tab-in .3s ease-out .5s both; }
+.boot-bar > i {
+  display: block; height: 100%; width: 0;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--blue), var(--teal) 55%, var(--violet));
+  box-shadow: 0 0 12px rgba(79, 227, 208, 0.9);
+}
+.boot.play .boot-bar > i { animation: boot-fill 1.02s cubic-bezier(.4, 0, .2, 1) .5s both; }
+@keyframes boot-fill { to { width: 100%; } }
+
+/* No reduced-motion exception here on purpose. Windows reports "reduce" when
+   its own animation setting is off, and hiding the cold open on that signal is
+   what made it look like the sequence never existed. It is under two seconds
+   and any key or click ends it. */
+
+/* ── the column footer ───────────────────────────────────────────────── */
+.side-foot {
+  padding: 0.9rem 1.15rem 1rem;
+  border-top: 1px solid var(--line);
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.25));
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Idle life
+   Almost everything that moves in this app is driven by a transfer, so with
+   nothing running the window was completely still -- which is most of the time
+   somebody is looking at it. These four are the only loops that run at rest,
+   they are all slow, and none of them claims anything is happening.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* The blooms drift and breathe. 40s is long enough that it is never the thing
+   you notice, only the thing that stops the window feeling like a screenshot. */
+@keyframes drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(-2.5%, 1.5%, 0) scale(1.06); }
+}
+
+/* A highlight crosses the Start button while it is waiting to be pressed, and
+   stops the moment a run owns it. */
+.primary[data-state="idle"]::after,
+.primary[data-state="done"]::after {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.4) 48%, transparent 60%);
+  transform: translateX(-120%);
+  animation: btn-sheen 5.5s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes btn-sheen {
+  0%, 72% { transform: translateX(-120%); }
+  100%    { transform: translateX(120%); }
+}
+
+/* The top hairline keeps a slow travelling glint while the app sits idle, so
+   the chrome has a pulse even when the numbers are all zero. */
+.topbar { position: relative; overflow: hidden; }
+.topbar::after {
+  content: "";
+  position: absolute; left: 0; right: 0; bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(125, 255, 233, 0.85), transparent);
+  width: 32%;
+  animation: rail 11s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes rail {
+  0%, 100% { transform: translateX(-60%); opacity: 0; }
+  15%      { opacity: 1; }
+  85%      { opacity: 1; }
+  100%     { transform: translateX(280%); }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Transfer rows: weight follows state
+   Every row used to carry identical weight, so a batch of 120 read as one grey
+   wall and the four files actually moving were the same size as the hundred
+   that had finished. Nothing here touches a ring, a percentage or a rate --
+   those belong to open issues.
+   ════════════════════════════════════════════════════════════════════════ */
+
+.fhost {
+  margin-left: 0.15rem;
+  padding: 0.06rem 0.36rem;
+  border-radius: 5px;
+  font-size: 0.52rem; font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--txt3);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid transparent;
+}
+.fhost[data-host="dn"] { color: var(--teal);   background: rgba(79, 227, 208, 0.1);  border-color: rgba(79, 227, 208, 0.22); }
+.fhost[data-host="ff"] { color: var(--violet); background: rgba(139, 124, 240, 0.1); border-color: rgba(139, 124, 240, 0.22); }
+
+/* In flight: more room, brighter name, a progress bar with actual presence. */
+.frow[data-state="download"],
+.frow[data-state="extract"],
+.frow[data-state="kill"] { padding-top: 0.75rem; padding-bottom: 0.9rem; }
+.frow[data-state="download"] .fname,
+.frow[data-state="extract"] .fname { color: #fff; font-size: 0.74rem; }
+.frow[data-state="download"] .foot { height: 3px; bottom: 0.34rem; }
+
+/* Finished: quieter and tighter, so the eye slides past the tail. */
+.frow[data-state="ok"],
+.frow[data-state="fail"] { padding-top: 0.48rem; padding-bottom: 0.55rem; }
+.frow[data-state="ok"] .fname,
+.frow[data-state="fail"] .fname { color: var(--txt2); }

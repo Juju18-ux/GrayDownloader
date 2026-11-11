@@ -1,0 +1,68 @@
+# Logs & telemetry
+moontech_*.log
+moontech_*.json
+crash_log.txt
+
+# Output
+output_links.txt
+failed_links.txt
+*.tmp
+
+# Optional user files
+proxies.txt
+logo.png
+
+# Written by the GUI on every settings change. Holds the datanodes API key
+# in clear text and the full pasted link list -- never commit it.
+settings.json
+
+# Downloaded media (safety net if run from repo dir)
+*.rar
+*.zip
+*.7z
+*.iso
+*.mkv
+*.mp4
+
+# Playwright session cache
+.playwright-mcp/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code
+CLAUDE.md
+.claude/
+eni_lime.txt
+corial_style.txt
+eni_launcher.bat
+
+# Node
+node_modules/
+package-lock.json
+
+
+# macOS
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+.AppleDouble
+
+# Windows extras
+Thumbs.db
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linter cache
+.ruff_cache/

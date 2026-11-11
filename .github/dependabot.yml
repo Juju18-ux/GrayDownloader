@@ -1,0 +1,35 @@
+version: 2
+updates:
+  # Python dependencies in requirements.txt
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+      day: monday
+      time: "09:00"
+      timezone: Europe/Rome
+    versioning-strategy: increase-if-necessary
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+    ignore:
+      # pillow is optional (tkinter logo scaling only). Major bumps drop
+      # deprecated APIs like Image.LANCZOS; stay on minor/patch until we
+      # refactor to the new Image.Resampling constants.
+      - dependency-name: "pillow"
+        update-types: ["version-update:semver-major"]
+
+  # GitHub Actions workflows
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: "chore(actions)"
